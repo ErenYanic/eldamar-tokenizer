@@ -13,10 +13,10 @@ brandyuis echoriath  arches     running
 ```
 
 `boromir`, `pengolodh` and `echoriath` are real Tolkien names the model has
-memorised; `markhîr` and `brandyuis` are invented but phonetically Tolkienish;
-`shield` and `arches` are ordinary English words the dataset deliberately keeps
-(they fall out of splitting multi-word place names). All were produced by models
-small enough to train on a CPU in a couple of minutes.
+memorised; `markhîr`, `brandyuis` and `shield` are inventions (none appear in the
+training data); `arches` and `running` are everyday English words the dataset keeps,
+split out of multi-word place names. All were produced by models small enough to
+train on a CPU in a couple of minutes.
 
 ## Credit / attribution
 
