@@ -7,14 +7,16 @@ tiny from-scratch LLM architectures on the result — **8 models in total**
 (4 architectures × 2 vocab sizes).
 
 ```
-$ python src/generate.py gemma4 512 --count 8 --temperature 0.8
-fréawine     gimilkhâd     gorgorth     hather
-baranduin    henneth       fannear      gilsorn
+$ python src/generate.py gemma4 512 --count 8 --temperature 0.8 --seed 1
+shield    boromir    markhîr    pengolodh
+brandyuis echoriath  arches     running
 ```
 
-Some are real (`fréawine`, `baranduin`, `henneth`); some are freshly invented but
-phonetically Tolkienish (`fannear`, `gilsorn`). All were produced by models small
-enough to train on a laptop CPU in a couple of minutes.
+`boromir`, `pengolodh` and `echoriath` are real Tolkien names the model has
+memorised; `markhîr` and `brandyuis` are invented but phonetically Tolkienish;
+`shield` and `arches` are ordinary English words the dataset deliberately keeps
+(they fall out of splitting multi-word place names). All were produced by models
+small enough to train on a CPU in a couple of minutes.
 
 ## Credit / attribution
 
