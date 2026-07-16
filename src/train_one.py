@@ -6,11 +6,12 @@ process on purpose: every architecture folder uses flat module names
 interpreter would collide in sys.modules. One process = one architecture keeps
 each import clean (the repo's "one architecture per kernel" rule).
 
-The training recipe is the repo's own -- a plain windowed next-token loop -- with
-just two swaps: the Middle-earth corpus in place of the Turkish names, and our
-character-level BPE tokeniser in place of the char tokeniser.
+The training recipe is the repo's own -- a plain windowed next-token loop -- on
+the Middle-earth corpus. The tokeniser is selectable: our character-level BPE at
+vocab 256 or 512, or the repo's plain CharTokenizer ("char") as a baseline.
 
 Run:  python src/train_one.py qwen3 256
+      python src/train_one.py qwen3 char
       python src/train_one.py deepseek3 512 --steps 200   # quick smoke test
 """
 
@@ -54,33 +55,51 @@ def load_architecture(folder: str, class_name: str):
     return model_config, model_class
 
 
+def build_tokenizer(kind: str):
+    """Return (tokenizer, label, checkpoint-metadata) for 'char', '256' or '512'.
+
+    Call this only after load_architecture(), because the 'char' baseline imports
+    the CharTokenizer from the architecture folder now on sys.path. Both tokenisers
+    expose the same interface (encode/decode/vocab_size/newline_id/eos_id).
+    """
+    if kind == "char":
+        # The repo's plain character tokeniser; its vocabulary is built directly
+        # from the corpus (42 letters + newline).
+        char_tokenizer = importlib.import_module("tokenizer").CharTokenizer
+        tokenizer = char_tokenizer.from_file(str(DATA_FILE))
+        return tokenizer, "char", {"tokenizer_kind": "char", "chars": tokenizer.chars}
+
+    from bpe_tokenizer import BpeTokenizer
+
+    vocab = int(kind)
+    tokenizer = BpeTokenizer.from_file(BPE_DIR / f"bpe_{vocab}.json")
+    return tokenizer, f"bpe{vocab}", {"tokenizer_kind": "bpe", "tokenizer": f"bpe/bpe_{vocab}.json"}
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train one tiny model on the BPE corpus.")
+    parser = argparse.ArgumentParser(description="Train one tiny model on the names corpus.")
     parser.add_argument("arch", choices=sorted(ARCHITECTURES))
-    parser.add_argument("vocab", type=int, choices=(256, 512))
+    parser.add_argument("tokenizer", choices=("char", "256", "512"),
+                        help="'char' = plain CharTokenizer baseline; 256/512 = BPE vocab size")
     parser.add_argument("--steps", type=int, default=None, help="override the default step count")
     args = parser.parse_args()
 
     folder, class_name, default_steps = ARCHITECTURES[args.arch]
     steps = args.steps if args.steps is not None else default_steps
 
-    # Import our tokeniser BEFORE putting the architecture folder on sys.path, so
-    # nothing in that folder can shadow it.
-    from bpe_tokenizer import BpeTokenizer
-
     model_config, model_class = load_architecture(folder, class_name)
 
     torch.manual_seed(SEED)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    tokenizer = BpeTokenizer.from_file(BPE_DIR / f"bpe_{args.vocab}.json")
+    tokenizer, label, tok_meta = build_tokenizer(args.tokenizer)
     text = DATA_FILE.read_text(encoding="utf-8")
     data = torch.tensor(tokenizer.encode(text), dtype=torch.long)
 
     cfg = model_config(vocab_size=tokenizer.vocab_size)
     model = model_class(cfg).to(device)
     n_params = sum(p.numel() for p in model.parameters())
-    print(f"[{args.arch} · vocab {args.vocab}] device={device} "
+    print(f"[{args.arch} · {label}] device={device} "
           f"params={n_params:,} steps={steps} corpus_ids={len(data)}")
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
@@ -117,14 +136,14 @@ def main() -> None:
     print("  samples: " + ", ".join(sample_names(10)))
 
     CKPT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = CKPT_DIR / f"{args.arch}_bpe{args.vocab}.pt"
+    out_path = CKPT_DIR / f"{args.arch}_{label}.pt"
     torch.save(
         {
             "model": model.state_dict(),
             "cfg": cfg,
             "arch": args.arch,
             "vocab_size": tokenizer.vocab_size,
-            "tokenizer": f"bpe/bpe_{args.vocab}.json",
+            **tok_meta,
         },
         out_path,
     )

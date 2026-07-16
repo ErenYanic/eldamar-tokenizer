@@ -1,10 +1,10 @@
 # eldamar-tokenizer
 
 A tiny, end-to-end pipeline that **learns to invent Middle-earth names**. It
-cleans a dataset of Tolkien character and place names, trains a character-level
-**BPE** tokeniser at two vocabulary sizes (256 and 512), and re-trains four
-tiny from-scratch LLM architectures on the result — **8 models in total**
-(4 architectures × 2 vocab sizes).
+cleans a dataset of Tolkien character and place names and trains four tiny
+from-scratch LLM architectures on it under three tokenisers — a plain character
+baseline plus character-level **BPE** at vocab 256 and 512 — for **12 models in
+total** (4 architectures × 3 tokenisers).
 
 ```
 $ python src/generate.py gemma4 512 --count 8 --temperature 0.8 --seed 1
@@ -26,8 +26,9 @@ a beautiful set of from-scratch tiny-LLM implementations (Qwen3, Qwen3.5, Gemma,
 DeepSeek-V3). That repository lives unchanged in
 [`single_letter_transformers/`](single_letter_transformers/) as plain content; all
 credit for the model code belongs to its author. `eldamar-tokenizer` only swaps
-the **data** (Turkish names → Middle-earth names) and the **tokeniser**
-(character-level → character-level **BPE**), and adds the glue to run the sweep.
+the **data** (Turkish names → Middle-earth names), adds a character-level **BPE**
+tokeniser alongside the original character tokeniser, and adds the glue to run the
+whole sweep.
 
 ## What is different from the original
 
@@ -35,20 +36,20 @@ the **data** (Turkish names → Middle-earth names) and the **tokeniser**
 | --- | --- | --- |
 | Task | Generate Turkish first names | Generate Middle-earth names |
 | Data | 921 cleaned Turkish names | 2,189 cleaned Tolkien names (characters + places) |
-| Tokeniser | Character level (~30 tokens) | Character-level **BPE** (256 and 512) |
-| Models | 1 per architecture | **2 per architecture** (one per vocab size) = 8 |
+| Tokeniser | Character level (~30 tokens) | Character level **and** character-level **BPE** (256 & 512) |
+| Models | 1 per architecture | **3 per architecture** (char + BPE-256 + BPE-512) = 12 |
 
 ## Pipeline
 
 ```
-3 CSVs  ─┐
-         ├─► clean_data.py ─► data/middle_earth_names.txt ─► bpe_tokenizer.py ─► bpe/bpe_{256,512}.json
-locations┘                          (2,189 names)                                        │
- (scraped)                                                                               ▼
-                                                                     train_all.py ─► checkpoints/*.pt (8)
-                                                                                         │
-                                                                                         ▼
-                                                                              generate.py ─► names
+3 CSVs + scraped locations
+        │
+        ▼
+   clean_data.py ─► data/middle_earth_names.txt   (2,189 names)
+        │
+        ├─► bpe_tokenizer.py ─► bpe/bpe_{256,512}.json    ┐
+        └─► CharTokenizer (built inline at train time)    ├─► train_all.py ─► checkpoints/*.pt (12) ─► generate.py
+                                                          ┘
 ```
 
 ## Directory layout
@@ -62,13 +63,13 @@ eldamar-tokenizer/
 ├── bpe/
 │   ├── bpe_256.json               # trained BPE tokenisers (Hugging Face format)
 │   └── bpe_512.json
-├── checkpoints/                   # 8 trained models: {arch}_bpe{256,512}.pt
+├── checkpoints/                   # 12 trained models: {arch}_{char,bpe256,bpe512}.pt
 ├── src/
 │   ├── scrape_locations.py        # 1. fetch place names via the MediaWiki API
 │   ├── clean_data.py              # 2. merge + clean all sources into one corpus
 │   ├── bpe_tokenizer.py           # 3. train / load the character-level BPE tokeniser
-│   ├── train_one.py               # 4. train a single (arch, vocab) model
-│   ├── train_all.py               #    ... orchestrate all 8
+│   ├── train_one.py               # 4. train a single (arch, tokeniser) model
+│   ├── train_all.py               #    ... orchestrate all 12
 │   └── generate.py                # 5. sample names from any checkpoint
 └── single_letter_transformers/    # the original repo (model code), unchanged
 ```
@@ -117,27 +118,46 @@ Hugging Face [`tokenizers`](https://github.com/huggingface/tokenizers):
 
 Example: `galadriel` → `gal·ad·ri·el` (256) → `gal·ad·riel` (512).
 
+The **character baseline** (`char`) uses the original repo's `CharTokenizer`, whose
+vocabulary is just the 43 symbols in the corpus (42 letters + newline). It needs no
+training and no artifact — it is rebuilt from the names file on each run — and gives
+us a reference point to judge what BPE actually buys.
+
 ## Results
 
-All eight models drop far below the uniform-guessing baseline (`ln 256 ≈ 5.55`,
-`ln 512 ≈ 6.24`) after 5,000 steps on CPU.
+Each of the four architectures was trained for 5,000 steps on CPU under all three
+tokenisers — **12 models**. Every one lands far below its uniform-guessing baseline
+(`ln 43 ≈ 3.76`, `ln 256 ≈ 5.55`, `ln 512 ≈ 6.24`).
 
-| Architecture | Params (256 / 512) | Final loss (256 / 512) | Sample names |
-| ------------ | ------------------ | ---------------------- | ------------ |
-| **Qwen3** (dense) | 26.8k / 35.0k | 1.47 / 1.25 | siriondir, alcarnor, kingsland |
-| **Qwen3.5** (hybrid) | 49.2k / 57.4k | 0.76 / 0.64 | elfstan, menelvy, aerinel |
-| **Gemma** (sliding-window) | 113.5k / 170.9k | 0.70 / **0.56** | thorondor, entwash, clayhanger |
-| **DeepSeek-V3** (MoE) | 55.2k / 63.4k | 0.94 / 0.82 | drúadan, celebros, gléowine |
+| Architecture | char — params / loss | BPE-256 — params / loss | BPE-512 — params / loss |
+| ------------ | -------------------- | ----------------------- | ----------------------- |
+| **Qwen3** (dense)          | 20.0k / 1.38 | 26.8k / 1.47  | 35.0k / 1.25 |
+| **Qwen3.5** (hybrid)       | 42.4k / 0.90 | 49.2k / 0.76  | 57.4k / 0.64 |
+| **Gemma** (sliding-window) | 65.8k / 0.78 | 113.5k / 0.70 | 170.9k / **0.56** |
+| **DeepSeek-V3** (MoE)      | 48.4k / 1.23 | 55.2k / 0.94  | 63.4k / 0.82 |
 
-**Reading the numbers:**
+Sample names (temperature 1.0, straight from training):
 
-- Loss is **not** comparable to the original char-level project (~0.5), nor directly
-  across 256 ↔ 512: BPE spreads probability over a larger vocabulary and fewer
-  tokens per name, so the absolute cross-entropy differs by construction. Within a
-  single vocab size the architecture ranking is meaningful.
-- The vocab-512 models are **noticeably larger** — the embedding and output head
-  (`vocab × hidden`) dominate at this scale (Gemma: 113k → 171k, +50%). Bigger vocab
-  buys shorter sequences and lower loss, but the models are no longer as "tiny".
+| Tokeniser | Examples |
+| --------- | -------- |
+| char    | balar, héoden, laketown, taur-en-faroth, samdalf, malach |
+| BPE-256 | siriondir, alcarnor, elfstan, menelvy, clayhanger, beleth |
+| BPE-512 | thorondor, entwash, gléowine, drúadan, harondor, sarum |
+
+**Reading the numbers — the trap to avoid:**
+
+- **Loss is only comparable *down a column*, never *across* one.** Within a tokeniser
+  all four architectures share the same vocabulary, token stream and baseline, so the
+  losses rank the architectures fairly. Across tokenisers the vocabulary (43 vs 256 vs
+  512) and the tokens-per-name differ, so the raw cross-entropy measures different
+  things — a lower BPE-512 number does **not** mean it models names "better" than the
+  char baseline. (A fair cross-tokeniser metric would be bits-per-character.)
+- **Bigger vocab ⇒ bigger model.** The tied embedding/output matrix is `vocab × hidden`,
+  so char → 256 → 512 inflates every model (Gemma 66k → 114k → 171k). Seeing that cost
+  is part of the point of the sweep.
+- **Qualitatively**, the character baseline blends whole words freely (`samdalf` =
+  Sam + Gandalf, `laketown`), while BPE leans on learned sub-word chunks and tends to
+  assemble names from morpheme-like pieces. Both are fun; neither is strictly best.
 
 ## Reproduce from scratch
 
@@ -152,17 +172,19 @@ uv pip install tokenizers numpy
 python src/scrape_locations.py       # -> data/locations.txt
 python src/clean_data.py             # -> data/middle_earth_names.txt
 python src/bpe_tokenizer.py          # -> bpe/bpe_256.json, bpe/bpe_512.json
-python src/train_all.py              # -> checkpoints/*.pt (8 models, a few minutes)
+python src/train_all.py              # -> checkpoints/*.pt (12 models, a few minutes)
+#   python src/train_all.py --tokenizer char   # just the 4 character baselines
 
 python src/generate.py qwen3_5 512 --count 20 --temperature 0.8
+python src/generate.py qwen3_5 char --count 20 --temperature 0.8
 ```
 
 ### Generation options
 
 ```bash
-python src/generate.py <arch> <vocab> [--count N] [--temperature T] [--seed S] [--novel-only]
+python src/generate.py <arch> <tokenizer> [--count N] [--temperature T] [--seed S] [--novel-only]
 ```
 
-- `arch` ∈ {qwen3, qwen3_5, gemma4, deepseek3}, `vocab` ∈ {256, 512}
+- `arch` ∈ {qwen3, qwen3_5, gemma4, deepseek3}, `tokenizer` ∈ {char, 256, 512}
 - Lower `--temperature` → safer, more familiar names; higher → more inventive.
 - `--novel-only` hides names that already exist in the training corpus.

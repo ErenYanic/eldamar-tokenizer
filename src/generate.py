@@ -6,7 +6,7 @@ in train_one.py it runs one architecture per process, so the flat module names i
 the architecture folders never collide.
 
 Run:  python src/generate.py qwen3 512                 # 20 names, temperature 0.8
-      python src/generate.py gemma4 256 --count 40
+      python src/generate.py gemma4 char --count 40    # the CharTokenizer baseline
       python src/generate.py deepseek3 512 --temperature 0.7 --novel-only
 
 Lower temperature -> safer, more familiar names. Higher -> more varied/inventive.
@@ -35,18 +35,16 @@ ARCHITECTURES = {
 }
 
 
-def load_model_and_tokenizer(arch: str, vocab: int):
-    """Rebuild the trained model and its BPE tokeniser from the saved checkpoint."""
-    # Import our tokeniser before the architecture folder joins sys.path.
-    from bpe_tokenizer import BpeTokenizer
-
+def load_model_and_tokenizer(arch: str, tok_spec: str):
+    """Rebuild the trained model and its tokeniser (char or BPE) from the checkpoint."""
     folder, class_name = ARCHITECTURES[arch]
     sys.path.insert(0, str(REPO / folder))
     # The architecture folder must be importable *before* torch.load, because the
     # pickled cfg is that folder's config.ModelConfig.
     model_class = getattr(importlib.import_module("model"), class_name)
 
-    checkpoint_path = CKPT_DIR / f"{arch}_bpe{vocab}.pt"
+    name = "char" if tok_spec == "char" else f"bpe{tok_spec}"
+    checkpoint_path = CKPT_DIR / f"{arch}_{name}.pt"
     if not checkpoint_path.exists():
         sys.exit(f"No checkpoint at {checkpoint_path.relative_to(ROOT)} -- train it first.")
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
@@ -55,7 +53,13 @@ def load_model_and_tokenizer(arch: str, vocab: int):
     model.load_state_dict(ckpt["model"])
     model.eval()
 
-    tokenizer = BpeTokenizer.from_file(ROOT / ckpt["tokenizer"])
+    if ckpt.get("tokenizer_kind") == "char":
+        # Rebuild the CharTokenizer from the exact character list it was trained on.
+        char_tokenizer = importlib.import_module("tokenizer").CharTokenizer
+        tokenizer = char_tokenizer(ckpt["chars"])
+    else:
+        from bpe_tokenizer import BpeTokenizer
+        tokenizer = BpeTokenizer.from_file(ROOT / ckpt["tokenizer"])
     return model, tokenizer
 
 
@@ -77,7 +81,8 @@ def generate_names(model, tokenizer, count: int, temperature: float) -> list[str
 def main() -> None:
     parser = argparse.ArgumentParser(description="Sample names from a trained checkpoint.")
     parser.add_argument("arch", choices=sorted(ARCHITECTURES))
-    parser.add_argument("vocab", type=int, choices=(256, 512))
+    parser.add_argument("tokenizer", choices=("char", "256", "512"),
+                        help="'char' for the CharTokenizer baseline, or a BPE vocab size")
     parser.add_argument("--count", type=int, default=20)
     parser.add_argument("--temperature", type=float, default=0.8)
     parser.add_argument("--seed", type=int, default=None, help="fix the RNG for reproducible samples")
@@ -88,7 +93,7 @@ def main() -> None:
     if args.seed is not None:
         torch.manual_seed(args.seed)
 
-    model, tokenizer = load_model_and_tokenizer(args.arch, args.vocab)
+    model, tokenizer = load_model_and_tokenizer(args.arch, args.tokenizer)
     names = generate_names(model, tokenizer, args.count, args.temperature)
 
     if args.novel_only:
