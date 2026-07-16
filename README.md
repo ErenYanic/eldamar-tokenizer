@@ -188,3 +188,11 @@ python src/generate.py <arch> <tokenizer> [--count N] [--temperature T] [--seed 
 - `arch` ∈ {qwen3, qwen3_5, gemma4, deepseek3}, `tokenizer` ∈ {char, 256, 512}
 - Lower `--temperature` → safer, more familiar names; higher → more inventive.
 - `--novel-only` hides names that already exist in the training corpus.
+
+## Bonus: Turkish district generator (separate task)
+
+[`districts/`](districts/) is a small **separate** side task — the same four
+architectures generating **Turkish district (ilçe) names** with the original repo's
+plain character tokeniser (no BPE), trained on names scraped from Turkish Wikipedia
+and cleaned by the repo's own `temizle_isimler.py`. It does not touch the `src/`
+pipeline. See [`districts/README.md`](districts/README.md).
