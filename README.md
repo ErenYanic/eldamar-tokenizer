@@ -1,10 +1,6 @@
 # eldamar-tokenizer
 
-A tiny, end-to-end pipeline that **learns to invent Middle-earth names**. It
-cleans a dataset of Tolkien character and place names and trains four tiny
-from-scratch LLM architectures on it under three tokenisers — a plain character
-baseline plus character-level **BPE** at vocab 256 and 512 — for **12 models in
-total** (4 architectures × 3 tokenisers).
+A tiny, end-to-end pipeline that **learns to invent Middle-earth names**. It cleans a dataset of Tolkien character and place names and trains four tiny from-scratch LLM architectures on it under three tokenisers — a plain character baseline plus character-level **BPE** at vocab 256 and 512 — for **12 models in total** (4 architectures × 3 tokenisers).
 
 ```
 $ python src/generate.py gemma4 512 --count 8 --temperature 0.8 --seed 1
@@ -12,32 +8,21 @@ shield    boromir    markhîr    pengolodh
 brandyuis echoriath  arches     running
 ```
 
-`boromir`, `pengolodh` and `echoriath` are real Tolkien names the model has
-memorised; `markhîr`, `brandyuis` and `shield` are inventions (none appear in the
-training data); `arches` and `running` are everyday English words the dataset keeps,
-split out of multi-word place names. All were produced by models small enough to
+`boromir`, `pengolodh` and `echoriath` are real Tolkien names the model has memorised; `markhîr`, `brandyuis` and `shield` are inventions (none appear in the training data); `arches` and `running` are everyday English words the dataset keeps, split out of multi-word place names. All were produced by models small enough to
 train on a CPU in a couple of minutes.
 
 ## Credit / attribution
 
-The four model architectures come from
-[**malibayram/single_letter_transformers**](https://github.com/malibayram/single_letter_transformers),
-a beautiful set of from-scratch tiny-LLM implementations (Qwen3, Qwen3.5, Gemma,
-DeepSeek-V3). That repository lives unchanged in
-[`single_letter_transformers/`](single_letter_transformers/) as plain content; all
-credit for the model code belongs to its author. `eldamar-tokenizer` only swaps
-the **data** (Turkish names → Middle-earth names), adds a character-level **BPE**
-tokeniser alongside the original character tokeniser, and adds the glue to run the
-whole sweep.
+The four model architectures are adapted from [**malibayram/single_letter_transformers**](https://github.com/malibayram/single_letter_transformers), a collection of from-scratch reference implementations of four tiny LLM architectures (Qwen3, Qwen3.5, Gemma, DeepSeek V3). That repository lives unchanged in [`single_letter_transformers/`](single_letter_transformers/) as plain content; all credit for the model code belongs to its author. `eldamar-tokenizer` only swaps the **data** (Turkish names → Middle-earth names), adds a character-level **BPE** tokeniser alongside the original character tokeniser, and adds the glue to run the whole sweep.
 
 ## What is different from the original
 
-| | Original (`single_letter_transformers`) | This project |
-| --- | --- | --- |
-| Task | Generate Turkish first names | Generate Middle-earth names |
-| Data | 921 cleaned Turkish names | 2,189 cleaned Tolkien names (characters + places) |
-| Tokeniser | Character level (~30 tokens) | Character level **and** character-level **BPE** (256 & 512) |
-| Models | 1 per architecture | **3 per architecture** (char + BPE-256 + BPE-512) = 12 |
+|           | Original (`single_letter_transformers`) | This project                                                |
+| --------- | --------------------------------------- | ----------------------------------------------------------- |
+| Task      | Generate Turkish first names            | Generate Middle-earth names                                 |
+| Data      | 921 cleaned Turkish names               | 2,189 cleaned Tolkien names (characters + places)           |
+| Tokeniser | Character level (~30 tokens)            | Character level **and** character-level **BPE** (256 & 512) |
+| Models    | 1 per architecture                      | **3 per architecture** (char + BPE-256 + BPE-512) = 12      |
 
 ## Pipeline
 
@@ -76,19 +61,13 @@ eldamar-tokenizer/
 
 ## Data cleaning
 
-Three character CSVs plus a scraped list of place names all pass through the **same**
-pipeline in [`src/clean_data.py`](src/clean_data.py):
+Three character CSVs plus a scraped list of place names all pass through the **same** pipeline in [`src/clean_data.py`](src/clean_data.py):
 
-- **Lower-case** with plain `str.lower()` (not Turkish lowering, which would turn
-  `Isildur` into `ısildur`).
+- **Lower-case** with plain `str.lower()` (not Turkish lowering, which would turn `Isildur` into `ısildur`).
 - **Keep diacritics** (`á â ä é ê ë í î ó ô ö ú û`) — they are half the Elvish flavour.
-- **Mine parentheticals**: strip them from the main string but feed their contents
-  back through the pipeline, so `Belladonna (Took) Baggins` yields `took` while
-  filters discard disambiguation prose like `(son of Axantur)`.
-- **Split** multi-word names into one word per line; keep internal hyphens
-  (`aelin-uial`, `ar-pharazôn`).
-- **Filter** connective/geographic stop-words (of, the, mount, river, …), regnal
-  Roman numerals (II, VI, …) and abbreviations (Jr).
+- **Mine parentheticals**: strip them from the main string but feed their contents back through the pipeline, so `Belladonna (Took) Baggins` yields `took` while filters discard disambiguation prose like `(son of Axantur)`.
+- **Split** multi-word names into one word per line; keep internal hyphens (`aelin-uial`, `ar-pharazôn`).
+- **Filter** connective/geographic stop-words (of, the, mount, river, …), regnal Roman numerals (II, VI, …) and abbreviations (Jr).
 - **De-duplicate** and sort.
 
 Result: **2,189 unique names**, a **42-character** alphabet (plus newline).
@@ -101,14 +80,12 @@ MediaWiki API with a descriptive User-Agent and extracts the display text of eve
 
 ## Tokeniser
 
-[`src/bpe_tokenizer.py`](src/bpe_tokenizer.py) trains a **character-level** BPE with
-Hugging Face [`tokenizers`](https://github.com/huggingface/tokenizers):
+[`src/bpe_tokenizer.py`](src/bpe_tokenizer.py) trains a **character-level** BPE with Hugging Face [`tokenizers`](https://github.com/huggingface/tokenizers):
 
 - **No byte-level pre-tokeniser**, so the base alphabet is the 42 real characters
   (each diacritic is one base token). This keeps both 256 and 512 meaningful merge
   targets rather than making "vocab 256" a degenerate zero-merge tokeniser.
-- A `Split("\n", isolated)` pre-tokeniser means merges never cross a name boundary
-  and `\n` stays a lone token — the start/end-of-name marker (EOS) the models rely on.
+- A `Split("\n", isolated)` pre-tokeniser means merges never cross a name boundary and `\n` stays a lone token — the start/end-of-name marker (EOS) the models rely on.
 - Encoding is **lossless** (verified by a full-corpus round-trip).
 
 | Vocab | Tokens reached | Tokens / name |
@@ -129,40 +106,32 @@ Each of the four architectures was trained for 5,000 steps on CPU under all thre
 tokenisers — **12 models**. Every one lands far below its uniform-guessing baseline
 (`ln 43 ≈ 3.76`, `ln 256 ≈ 5.55`, `ln 512 ≈ 6.24`).
 
-| Architecture | char — params / loss | BPE-256 — params / loss | BPE-512 — params / loss |
-| ------------ | -------------------- | ----------------------- | ----------------------- |
-| **Qwen3** (dense)          | 20.0k / 1.38 | 26.8k / 1.47  | 35.0k / 1.25 |
-| **Qwen3.5** (hybrid)       | 42.4k / 0.90 | 49.2k / 0.76  | 57.4k / 0.64 |
-| **Gemma** (sliding-window) | 65.8k / 0.78 | 113.5k / 0.70 | 170.9k / **0.56** |
-| **DeepSeek-V3** (MoE)      | 48.4k / 1.23 | 55.2k / 0.94  | 63.4k / 0.82 |
+| Architecture               | char — params / loss | BPE-256 — params / loss | BPE-512 — params / loss |
+| -------------------------- | -------------------- | ----------------------- | ----------------------- |
+| **Qwen3** (dense)          | 20.0k / 1.38         | 26.8k / 1.47            | 35.0k / 1.25            |
+| **Qwen3.5** (hybrid)       | 42.4k / 0.90         | 49.2k / 0.76            | 57.4k / 0.64            |
+| **Gemma** (sliding-window) | 65.8k / 0.78         | 113.5k / 0.70           | 170.9k / **0.56**       |
+| **DeepSeek-V3** (MoE)      | 48.4k / 1.23         | 55.2k / 0.94            | 63.4k / 0.82            |
 
 Sample names (temperature 1.0, straight from training):
 
-| Tokeniser | Examples |
-| --------- | -------- |
-| char    | balar, héoden, laketown, taur-en-faroth, samdalf, malach |
-| BPE-256 | siriondir, alcarnor, elfstan, menelvy, clayhanger, beleth |
-| BPE-512 | thorondor, entwash, gléowine, drúadan, harondor, sarum |
+| Tokeniser | Examples                                                  |
+| --------- | --------------------------------------------------------- |
+| char      | balar, héoden, laketown, taur-en-faroth, samdalf, malach  |
+| BPE-256   | siriondir, alcarnor, elfstan, menelvy, clayhanger, beleth |
+| BPE-512   | thorondor, entwash, gléowine, drúadan, harondor, sarum    |
 
 **Reading the numbers — the trap to avoid:**
 
-- **Loss is only comparable *down a column*, never *across* one.** Within a tokeniser
-  all four architectures share the same vocabulary, token stream and baseline, so the
-  losses rank the architectures fairly. Across tokenisers the vocabulary (43 vs 256 vs
-  512) and the tokens-per-name differ, so the raw cross-entropy measures different
-  things — a lower BPE-512 number does **not** mean it models names "better" than the
-  char baseline. (A fair cross-tokeniser metric would be bits-per-character.)
-- **Bigger vocab ⇒ bigger model.** The tied embedding/output matrix is `vocab × hidden`,
-  so char → 256 → 512 inflates every model (Gemma 66k → 114k → 171k). Seeing that cost
-  is part of the point of the sweep.
-- **Qualitatively**, the character baseline blends whole words freely (`samdalf` =
-  Sam + Gandalf, `laketown`), while BPE leans on learned sub-word chunks and tends to
-  assemble names from morpheme-like pieces. Both are fun; neither is strictly best.
+- **Loss is only comparable *down a column*, never *across* one.** Within a tokeniser all four architectures share the same vocabulary, token stream and baseline, so the losses rank the architectures fairly. Across tokenisers the vocabulary (43 vs 256 vs 512) and the tokens-per-name differ, so the raw cross-entropy measures different things — a lower BPE-512 number does **not** mean it models names "better" than the char baseline. (A fair cross-tokeniser metric would be bits-per-character.)
+
+- **Bigger vocab ⇒ bigger model.** The tied embedding/output matrix is `vocab × hidden`, so char → 256 → 512 inflates every model (Gemma 66k → 114k → 171k). Seeing that cost is part of the point of the sweep.
+
+- **Qualitatively**, the character baseline blends whole words freely (`samdalf` = Sam + Gandalf, `laketown`), while BPE leans on learned sub-word chunks and tends to assemble names from morpheme-like pieces. Both are fun; neither is strictly best.
 
 ## Reproduce from scratch
 
-Requires Python 3.13 and [`uv`](https://github.com/astral-sh/uv). Dependencies:
-`torch` (CPU), `tokenizers`, `numpy`.
+Requires Python 3.13 and [`uv`](https://github.com/astral-sh/uv). Dependencies: `torch` (CPU), `tokenizers`, `numpy`.
 
 ```bash
 uv venv                                                   # create .venv
@@ -191,10 +160,7 @@ python src/generate.py <arch> <tokenizer> [--count N] [--temperature T] [--seed 
 
 ## Turkish 128K BPE tokeniser (separate sub-project)
 
-[`turkish_bpe_128k/`](turkish_bpe_128k/) is a **separate** sub-project: a
-production-style **128,000-token byte-level BPE tokeniser for Turkish**, trained
-on ~200M characters from two Hugging Face review datasets and published as
-**[Erenyanic/turkish-bpe-128k](https://huggingface.co/Erenyanic/turkish-bpe-128k)**.
+[`turkish_bpe_128k/`](turkish_bpe_128k/) is a **separate** sub-project: a production-style **128,000-token byte-level BPE tokeniser for Turkish**, trained on ~200M characters from two Hugging Face review datasets and published as **[Erenyanic/turkish-bpe-128k](https://huggingface.co/Erenyanic/turkish-bpe-128k)**.
 
 ```python
 from transformers import AutoTokenizer
@@ -204,33 +170,23 @@ ids = tok.encode("İstanbul'da yağmur yağıyor.", add_special_tokens=False)
 # ['İstanbul', "'da", ' yağmur', ' yağıyor', '.']
 ```
 
-(Decoding ids one at a time is what renders the pieces as readable text —
-`tokenize()` returns them in byte-level form, e.g. `'ĠyaÄŁmur'`.)
+(Decoding ids one at a time is what renders the pieces as readable text — `tokenize()` returns them in byte-level form, e.g. `'ĠyaÄŁmur'`.)
 
-It is the opposite end of the design space from the `src/` tokeniser above, which
-makes the pair a useful contrast:
+It is the opposite end of the design space from the `src/` tokeniser above, which makes the pair a useful contrast:
 
-| | `src/` char-level BPE | `turkish_bpe_128k/` |
-| --- | --- | --- |
-| Alphabet | 42 real characters | 256 raw bytes |
-| Vocab | 256 / 512 | 128,000 |
-| Unknown token | none needed (closed corpus) | none possible (bytes cover everything) |
-| Round-trip | lossless on its corpus | lossless on **any** input, any script |
-| Purpose | teach a tiny model 2,189 names | front a real Turkish LM |
+|               | `src/` char-level BPE          | `turkish_bpe_128k/`                    |
+| ------------- | ------------------------------ | -------------------------------------- |
+| Alphabet      | 42 real characters             | 256 raw bytes                          |
+| Vocab         | 256 / 512                      | 128,000                                |
+| Unknown token | none needed (closed corpus)    | none possible (bytes cover everything) |
+| Round-trip    | lossless on its corpus         | lossless on **any** input, any script  |
+| Purpose       | teach a tiny model 2,189 names | front a real Turkish LM                |
 
-Two Turkish-specific details worth noting: the tokeniser **preserves casing**
-(sidestepping the dotted/dotless *i* trap), and it **drops the English contraction
-clause** from the standard GPT-4 split regex — left in, that clause would cut
-`İstanbul'da` into `İstanbul` + `'d` + `a`, severing the apostrophe suffix Turkish
-uses on proper nouns.
+Two Turkish-specific details worth noting: the tokeniser **preserves casing** (sidestepping the dotted/dotless *i* trap), and it **drops the English contraction clause** from the standard GPT-4 split regex — left in, that clause would cut `İstanbul'da` into `İstanbul` + `'d` + `a`, severing the apostrophe suffix Turkish uses on proper nouns.
 
 Full design notes, evaluation numbers and honest limitations are in
 [`turkish_bpe_128k/README.md`](turkish_bpe_128k/README.md).
 
 ## Bonus: Turkish district generator (separate task)
 
-[`districts/`](districts/) is a small **separate** side task — the same four
-architectures generating **Turkish district (ilçe) names** with the original repo's
-plain character tokeniser (no BPE), trained on names scraped from Turkish Wikipedia
-and cleaned by the repo's own `temizle_isimler.py`. It does not touch the `src/`
-pipeline. See [`districts/README.md`](districts/README.md).
+[`districts/`](districts/) is a small **separate** side task — the same four architectures generating **Turkish district (ilçe) names** with the original repo's plain character tokeniser (no BPE), trained on names scraped from Turkish Wikipedia and cleaned by the repo's own `temizle_isimler.py`. It does not touch the `src/` pipeline. See [`districts/README.md`](districts/README.md).

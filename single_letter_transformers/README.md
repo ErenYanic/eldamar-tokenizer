@@ -5,8 +5,7 @@ to read top to bottom and train on a laptop CPU in under a minute. Every model l
 the same toy task — **generate Turkish first names one letter at a time** — so you can
 compare architectures directly instead of getting lost in scale.
 
-Four language-model architectures, same task, side by side — plus a fifth
-folder that is a different beast entirely (a four-model audio pipeline):
+Four language-model architectures, same task, side by side — plus a fifth folder that is a different beast entirely (a four-model audio pipeline):
 
 | Folder                     | Architecture           | What makes it different                                                                               |
 | -------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -16,39 +15,24 @@ folder that is a different beast entirely (a four-model audio pipeline):
 | [`deepseek3/`](deepseek3/) | **DeepSeek-V3 sparse** | **MLA** compressed-KV attention + **MoE** with a shared expert and **aux-loss-free** load balancing   |
 | [`acestep/`](acestep/)     | **ACE-Step v1.5**      | Not an LM: a **planner LM + FSQ bridge + diffusion DiT + VAE** that turn a letter into a **waveform** |
 
-> The goal is _clarity_, not fidelity. Each folder implements the architecture's
-> signature ideas in the simplest correct form; large-scale tricks (MatFormer,
-> chunked-parallel DeltaNet, 256-expert routing, 256k vocab, multi-token
-> prediction, etc.) are intentionally left out. See each folder's notes for what
-> is simplified.
+> The goal is _clarity_, not fidelity. Each folder implements the architecture's signature ideas in the simplest correct form; large-scale tricks (MatFormer, chunked-parallel DeltaNet, 256-expert routing, 256k vocab, multi-token prediction, etc.) are intentionally left out. See each folder's notes for what is simplified.
 
 ## Bonus: fine-tuning techniques
 
-[`lora/`](lora/) is a **teaching module, not another architecture.** It freezes any of
-the four models above and shows how **LoRA, rsLoRA, DoRA, VeRA, and PiSSA** re-steer it
-by training a tiny add-on (as few as **704 numbers** — smaller than its own README).
-The adapter code is **architecture-agnostic**: the same `inject()` wraps the
-`nn.Linear`s of qwen3 (GQA), gemma (sliding-window), or deepseek (MLA) unchanged —
-only the target layer names differ, and those live in one small registry. Every file
-is commented line by line, and [`lora/by_hand.py`](lora/by_hand.py) verifies each
-concept on pencil-friendly numbers your students can check by hand. See
-[`lora/README.md`](lora/README.md).
+[`lora/`](lora/) is a **teaching module, not another architecture.** It freezes any of the four models above and shows how **LoRA, rsLoRA, DoRA, VeRA, and PiSSA** re-steer it by training a tiny add-on (as few as **704 numbers** — smaller than its own README). The adapter code is **architecture-agnostic**: the same `inject()` wraps the `nn.Linear`s of qwen3 (GQA), gemma (sliding-window), or deepseek (MLA) unchanged — only the target layer names differ, and those live in one small registry. Every file is commented line by line, and [`lora/by_hand.py`](lora/by_hand.py) verifies each concept on pencil-friendly numbers your students can check by hand. See [`lora/README.md`](lora/README.md).
 
 ## Design rules
 
 - **One module = one file.** `config → rms_norm → rotary → attention → mlp → block → model`.
-- **Each folder is self-contained** — copies of the shared simple modules live in each, so
-  you can study one architecture without jumping between directories.
+- **Each folder is self-contained** — copies of the shared simple modules live in each, so you can study one architecture without jumping between directories.
 - **No `transformers` dependency.** Just `torch`.
 - Character-level: every token is a single Turkish letter; `\n` marks the start/end of a name.
 
 ## Data
 
 - [`data/isimler.txt`](data/isimler.txt) — raw names (UPPERCASE, some multi-name lines)
-- [`data/temizle_isimler.py`](data/temizle_isimler.py) — lowercases (correct Turkish `I/İ`),
-  splits multi-name lines, dedupes
-- [`data/temiz_isimler.txt`](data/temiz_isimler.txt) — **921 cleaned names**, one per line
-  (29 Turkish letters + newline)
+- [`data/temizle_isimler.py`](data/temizle_isimler.py) — lowercases (correct Turkish `I/İ`), splits multi-name lines, dedupes
+- [`data/temiz_isimler.txt`](data/temiz_isimler.txt) — **921 cleaned names**, one per line (29 Turkish letters + newline)
 
 Regenerate the clean file: `cd data && python3 temizle_isimler.py`
 
@@ -63,22 +47,15 @@ python3 generate.py 20      # generate 20 names
 python3 generate.py 20 0.7  # lower temperature = safer / more common names
 ```
 
-> [`acestep/`](acestep/) is the exception: same `train.py` entry point (it trains four
-> stages in series, ~80s on CPU), but `python3 generate.py a` takes a **letter** and writes
-> `out.wav` instead of printing names. See its own README for the four-region walkthrough.
+> [`acestep/`](acestep/) is the exception: same `train.py` entry point (it trains four stages in series, ~80s on CPU), but `python3 generate.py a` takes a **letter** and writes `out.wav` instead of printing names. See its own README for the four-region walkthrough.
 
-> This project uses **pyenv**, pinned to **Python 3.13.3** via [`.python-version`](.python-version)
-> (run `pyenv install 3.13.3` once if needed). The old `.venv/` is not used.
+> This project uses **pyenv**, pinned to **Python 3.13.3** via [`.python-version`](.python-version) (run `pyenv install 3.13.3` once if needed). The old `.venv/` is not used.
 
 ## Use in a Jupyter notebook
 
-Start the notebook from the repo root (`jupyter lab` or `jupyter notebook`). Each model
-folder uses flat imports (`from model import ...`), so add the folder you want to
-`sys.path` first.
+Start the notebook from the repo root (`jupyter lab` or `jupyter notebook`). Each model folder uses flat imports (`from model import ...`), so add the folder you want to `sys.path` first.
 
-> **One architecture per kernel.** All model folders share module names
-> (`model.py`, `config.py`, …). To switch architectures, **restart the kernel** so the
-> right modules get imported.
+> **One architecture per kernel.** All model folders share module names (`model.py`, `config.py`, …). To switch architectures, **restart the kernel** so the right modules get imported.
 
 **Train from a cell** (simplest — just run the script):
 
@@ -145,8 +122,7 @@ Checkpoint paths and model classes per folder:
 
 ## Results (toy run, CPU)
 
-All four drop from the uniform baseline loss (`ln 30 ≈ 3.40`) to ~0.5 and produce
-plausible Turkish names:
+All four drop from the uniform baseline loss (`ln 30 ≈ 3.40`) to ~0.5 and produce plausible Turkish names:
 
 | Model       | Params             | Final loss | Sample names                  |
 | ----------- | ------------------ | ---------- | ----------------------------- |
@@ -157,36 +133,14 @@ plausible Turkish names:
 
 ## The architectures in one paragraph each
 
-**Qwen3 (dense).** A standard pre-norm decoder. Each block does
-`x += attention(norm(x)); x += mlp(norm(x))`. Attention uses Grouped-Query Attention
-(fewer key/value heads than query heads), applies RMSNorm to per-head queries and keys
-(**QK-Norm**) and then **RoPE**, and the MLP is **SwiGLU**. See [`qwen3/`](qwen3/).
+**Qwen3 (dense).** A standard pre-norm decoder. Each block does `x += attention(norm(x)); x += mlp(norm(x))`. Attention uses Grouped-Query Attention (fewer key/value heads than query heads), applies RMSNorm to per-head queries and keys (**QK-Norm**) and then **RoPE**, and the MLP is **SwiGLU**. See [`qwen3/`](qwen3/).
 
-**Qwen3.5 (hybrid).** Same skeleton, but most layers replace softmax attention with
-**Gated DeltaNet** — a linear-attention layer that keeps one fixed-size memory matrix and
-updates it token by token with the _gated delta rule_ (decay gate + write gate + error
-correction). Only every 4th layer keeps full attention. See
-[`qwen3_5/gated_deltanet.py`](qwen3_5/gated_deltanet.py).
+**Qwen3.5 (hybrid).** Same skeleton, but most layers replace softmax attention with **Gated DeltaNet** — a linear-attention layer that keeps one fixed-size memory matrix and updates it token by token with the _gated delta rule_ (decay gate + write gate + error
+correction). Only every 4th layer keeps full attention. See [`qwen3_5/gated_deltanet.py`](qwen3_5/gated_deltanet.py).
 
-**Gemma.** Normalizes **before and after** each sub-layer ("sandwich norm"), interleaves
-**5 local sliding-window layers : 1 global layer**, uses a small RoPE base for local layers
-and a large one for global, swaps SwiGLU for **GeGLU**, scales embeddings by
-`sqrt(hidden_size)`, and adds small **per-layer embeddings**. See [`gemma4/`](gemma4/).
+**Gemma.** Normalizes **before and after** each sub-layer ("sandwich norm"), interleaves **5 local sliding-window layers : 1 global layer**, uses a small RoPE base for local layers
+and a large one for global, swaps SwiGLU for **GeGLU**, scales embeddings by `sqrt(hidden_size)`, and adds small **per-layer embeddings**. See [`gemma4/`](gemma4/).
 
-**DeepSeek-V3 (sparse).** Swaps both halves of the block. Attention becomes
-**MLA**: each token is compressed into a tiny **KV latent** and every head's K/V
-are re-expanded from it (only the latent would ever be cached), with position
-carried by a few **decoupled RoPE** dims. The MLP becomes **MoE**: a sigmoid
-router sends each token to its **top-2** of 4 small experts (plus one always-on
-shared expert), and load is balanced **aux-loss-free** by nudging a per-expert
-selection bias after every step. See [`deepseek3/`](deepseek3/).
+**DeepSeek-V3 (sparse).** Swaps both halves of the block. Attention becomes **MLA**: each token is compressed into a tiny **KV latent** and every head's K/V are re-expanded from it (only the latent would ever be cached), with position carried by a few **decoupled RoPE** dims. The MLP becomes **MoE**: a sigmoid router sends each token to its **top-2** of 4 small experts (plus one always-on shared expert), and load is balanced **aux-loss-free** by nudging a per-expert selection bias after every step. See [`deepseek3/`](deepseek3/).
 
-**ACE-Step v1.5 (the outlier).** Not a single LM and not the names task — it is a
-**two-brain audio pipeline**, so here each Turkish letter is a _tag_ whose "song" is a tiny
-waveform. A low-resolution autoregressive **planner LM** (the reused TinyQwen) writes a coarse
-**5Hz code** blueprint; an **FSQ** bridge turns those discrete codes into a continuous "source
-latent"; a **diffusion DiT** denoises noise → **25Hz latent** in a few **flow-matching** steps
-(self-attention for time coherence + cross-attention onto the tag and skeleton); and a small
-**Oobleck VAE** decodes the latent to a **waveform**. Run `python3 generate.py a` (not a
-count) — it traces the shape through all four regions and writes `out.wav`. See
-[`acestep/`](acestep/).
+**ACE-Step v1.5 (the outlier).** Not a single LM and not the names task — it is a **two-brain audio pipeline**, so here each Turkish letter is a _tag_ whose "song" is a tiny waveform. A low-resolution autoregressive **planner LM** (the reused TinyQwen) writes a coarse **5Hz code** blueprint; an **FSQ** bridge turns those discrete codes into a continuous "source latent"; a **diffusion DiT** denoises noise → **25Hz latent** in a few **flow-matching** steps (self-attention for time coherence + cross-attention onto the tag and skeleton); and a small **Oobleck VAE** decodes the latent to a **waveform**. Run `python3 generate.py a` (not a count) — it traces the shape through all four regions and writes `out.wav`. See [`acestep/`](acestep/).
