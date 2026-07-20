@@ -1,8 +1,24 @@
+---
+language:
+- tr
+license: apache-2.0
+library_name: transformers
+tags:
+- tokenizer
+- bpe
+- byte-level-bpe
+- turkish
+- turkce
+datasets:
+- winvoker/turkish-sentiment-analysis-dataset
+- kmkarakaya/turkishReviews-ds
+---
+
 # turkish-bpe-128k
 
 A **128,000-token byte-level BPE tokeniser for Turkish**, trained from scratch on ~200M characters of Turkish user-generated text with Hugging Face [`tokenizers`](https://github.com/huggingface/tokenizers) and packaged for `transformers`.
 
-Published at **[Erenyanic/turkish-bpe-128k](https://huggingface.co/Erenyanic/turkish-bpe-128k)**.
+Training and evaluation code: **[ErenYanic/eldamar-tokenizer](https://github.com/ErenYanic/eldamar-tokenizer)** (`turkish_bpe_128k/`).
 
 ```python
 from transformers import AutoTokenizer
@@ -19,7 +35,7 @@ tok.tokenize("İstanbul'da yağmur yağıyor.")
 # ['İstanbul', "'da", ' yağmur', ' yağıyor', '.']
 ```
 
-This is a **separate sub-project** from the Middle-earth name generator in [`src/`](../src/). It shares nothing with it but the repository — different data, different tokeniser design, different scale.
+This is a **separate sub-project** from the Middle-earth name generator in [`src/`](https://github.com/ErenYanic/eldamar-tokenizer/tree/main/src). It shares nothing with it but the repository — different data, different tokeniser design, different scale.
 
 ## Design
 
@@ -44,7 +60,7 @@ The trade is real, though: a classic BPE with a capped alphabet gives you a *mea
 
 ### The Turkish apostrophe fix
 
-The published cl100k / Llama-3 split regex opens with an English contraction clause — `'s|'t|'re|'ve|'m|'ll|'d`. Applied to Turkish it is a bug: `İstanbul'da` would split into `İstanbul` + `'d` + `a`, severing the apostrophe suffix Turkish uses on proper nouns. [`train_tokenizer.py`](train_tokenizer.py) drops that clause, so `[^\r\n\p{L}\p{N}]?\p{L}+` keeps `'da` intact as one chunk. The rest of the pattern is unchanged.
+The published cl100k / Llama-3 split regex opens with an English contraction clause — `'s|'t|'re|'ve|'m|'ll|'d`. Applied to Turkish it is a bug: `İstanbul'da` would split into `İstanbul` + `'d` + `a`, severing the apostrophe suffix Turkish uses on proper nouns. [`train_tokenizer.py`](https://github.com/ErenYanic/eldamar-tokenizer/blob/main/turkish_bpe_128k/train_tokenizer.py) drops that clause, so `[^\r\n\p{L}\p{N}]?\p{L}+` keeps `'da` intact as one chunk. The rest of the pattern is unchanged.
 
 ### The `Ġ` and `Ã§` you will see in the vocabulary
 
@@ -60,11 +76,11 @@ Byte-level BPE stores the 256 bytes remapped to printable Unicode, because raw b
 
 All splits of both datasets are used — a tokeniser has no train/test leakage concern, and holding data back would only make the vocabulary worse.
 
-Cleaning is deliberately light ([`build_corpus.py`](build_corpus.py)): whitespace collapsed to single spaces, records under 10 characters dropped, exact duplicates removed. No lower-casing, no punctuation stripping, no accent folding — a tokeniser should see text the way a model later will.
+Cleaning is deliberately light ([`build_corpus.py`](https://github.com/ErenYanic/eldamar-tokenizer/blob/main/turkish_bpe_128k/build_corpus.py)): whitespace collapsed to single spaces, records under 10 characters dropped, exact duplicates removed. No lower-casing, no punctuation stripping, no accent folding — a tokeniser should see text the way a model later will.
 
 ## Results
 
-Measured on a 20,000-line random sample ([`evaluate.py`](evaluate.py)):
+Measured on a 20,000-line random sample ([`evaluate.py`](https://github.com/ErenYanic/eldamar-tokenizer/blob/main/turkish_bpe_128k/evaluate.py)):
 
 | Metric                   | Value                                    |
 | ------------------------ | ---------------------------------------- |
