@@ -8,8 +8,7 @@ shield    boromir    markhîr    pengolodh
 brandyuis echoriath  arches     running
 ```
 
-`boromir`, `pengolodh` and `echoriath` are real Tolkien names the model has memorised; `markhîr`, `brandyuis` and `shield` are inventions (none appear in the training data); `arches` and `running` are everyday English words the dataset keeps, split out of multi-word place names. All were produced by models small enough to
-train on a CPU in a couple of minutes.
+`boromir`, `pengolodh` and `echoriath` are real Tolkien names the model has memorised; `markhîr`, `brandyuis` and `shield` are inventions (none appear in the training data); `arches` and `running` are everyday English words the dataset keeps, split out of multi-word place names. All were produced by models small enough to train on a CPU in a couple of minutes.
 
 ## Credit / attribution
 
@@ -72,19 +71,13 @@ Three character CSVs plus a scraped list of place names all pass through the **s
 
 Result: **2,189 unique names**, a **42-character** alphabet (plus newline).
 
-Place names come from Tolkien Gateway's
-[`Index:Locations`](https://tolkiengateway.net/wiki/Index:Locations). The site blocks
-plain fetches, so [`src/scrape_locations.py`](src/scrape_locations.py) uses its
-MediaWiki API with a descriptive User-Agent and extracts the display text of every
-`[[link]]` bullet.
+Place names come from Tolkien Gateway's [`Index:Locations`](https://tolkiengateway.net/wiki/Index:Locations). The site blocks plain fetches, so [`src/scrape_locations.py`](src/scrape_locations.py) uses its MediaWiki API with a descriptive User-Agent and extracts the display text of every `[[link]]` bullet.
 
 ## Tokeniser
 
 [`src/bpe_tokenizer.py`](src/bpe_tokenizer.py) trains a **character-level** BPE with Hugging Face [`tokenizers`](https://github.com/huggingface/tokenizers):
 
-- **No byte-level pre-tokeniser**, so the base alphabet is the 42 real characters
-  (each diacritic is one base token). This keeps both 256 and 512 meaningful merge
-  targets rather than making "vocab 256" a degenerate zero-merge tokeniser.
+- **No byte-level pre-tokeniser**, so the base alphabet is the 42 real characters (each diacritic is one base token). This keeps both 256 and 512 meaningful merge targets rather than making "vocab 256" a degenerate zero-merge tokeniser.
 - A `Split("\n", isolated)` pre-tokeniser means merges never cross a name boundary and `\n` stays a lone token — the start/end-of-name marker (EOS) the models rely on.
 - Encoding is **lossless** (verified by a full-corpus round-trip).
 
@@ -95,16 +88,11 @@ MediaWiki API with a descriptive User-Agent and extracts the display text of eve
 
 Example: `galadriel` → `gal·ad·ri·el` (256) → `gal·ad·riel` (512).
 
-The **character baseline** (`char`) uses the original repo's `CharTokenizer`, whose
-vocabulary is just the 43 symbols in the corpus (42 letters + newline). It needs no
-training and no artifact — it is rebuilt from the names file on each run — and gives
-us a reference point to judge what BPE actually buys.
+The **character baseline** (`char`) uses the original repo's `CharTokenizer`, whose vocabulary is just the 43 symbols in the corpus (42 letters + newline). It needs no training and no artifact — it is rebuilt from the names file on each run — and gives us a reference point to judge what BPE actually buys.
 
 ## Results
 
-Each of the four architectures was trained for 5,000 steps on CPU under all three
-tokenisers — **12 models**. Every one lands far below its uniform-guessing baseline
-(`ln 43 ≈ 3.76`, `ln 256 ≈ 5.55`, `ln 512 ≈ 6.24`).
+Each of the four architectures was trained for 5,000 steps on CPU under all three tokenisers — **12 models**. Every one lands far below its uniform-guessing baseline (`ln 43 ≈ 3.76`, `ln 256 ≈ 5.55`, `ln 512 ≈ 6.24`).
 
 | Architecture               | char — params / loss | BPE-256 — params / loss | BPE-512 — params / loss |
 | -------------------------- | -------------------- | ----------------------- | ----------------------- |
@@ -184,8 +172,7 @@ It is the opposite end of the design space from the `src/` tokeniser above, whic
 
 Two Turkish-specific details worth noting: the tokeniser **preserves casing** (sidestepping the dotted/dotless *i* trap), and it **drops the English contraction clause** from the standard GPT-4 split regex — left in, that clause would cut `İstanbul'da` into `İstanbul` + `'d` + `a`, severing the apostrophe suffix Turkish uses on proper nouns.
 
-Full design notes, evaluation numbers and honest limitations are in
-[`turkish_bpe_128k/README.md`](turkish_bpe_128k/README.md).
+Full design notes, evaluation numbers and honest limitations are in [`turkish_bpe_128k/README.md`](turkish_bpe_128k/README.md).
 
 ## Bonus: Turkish district generator (separate task)
 
