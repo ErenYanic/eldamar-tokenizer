@@ -189,6 +189,44 @@ python src/generate.py <arch> <tokenizer> [--count N] [--temperature T] [--seed 
 - Lower `--temperature` → safer, more familiar names; higher → more inventive.
 - `--novel-only` hides names that already exist in the training corpus.
 
+## Turkish 128K BPE tokeniser (separate sub-project)
+
+[`turkish_bpe_128k/`](turkish_bpe_128k/) is a **separate** sub-project: a
+production-style **128,000-token byte-level BPE tokeniser for Turkish**, trained
+on ~200M characters from two Hugging Face review datasets and published as
+**[Erenyanic/turkish-bpe-128k](https://huggingface.co/Erenyanic/turkish-bpe-128k)**.
+
+```python
+from transformers import AutoTokenizer
+tok = AutoTokenizer.from_pretrained("Erenyanic/turkish-bpe-128k")
+ids = tok.encode("İstanbul'da yağmur yağıyor.", add_special_tokens=False)
+[tok.decode([i]) for i in ids]
+# ['İstanbul', "'da", ' yağmur', ' yağıyor', '.']
+```
+
+(Decoding ids one at a time is what renders the pieces as readable text —
+`tokenize()` returns them in byte-level form, e.g. `'ĠyaÄŁmur'`.)
+
+It is the opposite end of the design space from the `src/` tokeniser above, which
+makes the pair a useful contrast:
+
+| | `src/` char-level BPE | `turkish_bpe_128k/` |
+| --- | --- | --- |
+| Alphabet | 42 real characters | 256 raw bytes |
+| Vocab | 256 / 512 | 128,000 |
+| Unknown token | none needed (closed corpus) | none possible (bytes cover everything) |
+| Round-trip | lossless on its corpus | lossless on **any** input, any script |
+| Purpose | teach a tiny model 2,189 names | front a real Turkish LM |
+
+Two Turkish-specific details worth noting: the tokeniser **preserves casing**
+(sidestepping the dotted/dotless *i* trap), and it **drops the English contraction
+clause** from the standard GPT-4 split regex — left in, that clause would cut
+`İstanbul'da` into `İstanbul` + `'d` + `a`, severing the apostrophe suffix Turkish
+uses on proper nouns.
+
+Full design notes, evaluation numbers and honest limitations are in
+[`turkish_bpe_128k/README.md`](turkish_bpe_128k/README.md).
+
 ## Bonus: Turkish district generator (separate task)
 
 [`districts/`](districts/) is a small **separate** side task — the same four

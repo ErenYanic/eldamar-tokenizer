@@ -18,6 +18,9 @@ env/
 *.wav
 temiz_isimler.txt
 
+# Generated tokeniser corpus (~200MB, rebuild with build_corpus.py)
+turkish_bpe_128k/corpus/
+
 # Editor and assistant metadata
 .claude/
 .DS_Store
